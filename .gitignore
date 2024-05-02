@@ -1,0 +1,12 @@
+a.out
+*.o
+*.user
+_build/
+.qmake.stash
+Makefile
+*.exe
+*.ilk
+*.pdb
+build/
+projector
+

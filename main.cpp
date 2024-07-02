@@ -9,9 +9,9 @@
 
 FileType ft;
 
-bool isbinary(int fd)
+bool isbinary(char const *data, size_t size, int st_mode)
 {
-	auto r = ft.file(fd);
+	auto r = ft.file(data, size, st_mode);
 	return strcmp(r.charset.c_str(), "binary") == 0;
 }
 

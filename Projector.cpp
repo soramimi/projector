@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+bool isbinary(int fd);
+
 /**
  * @brief 大文字かどうかを判定する
  * @param c
@@ -274,8 +276,12 @@ void Projector::convertFile(std::string const &srcpath, std::string const &dstpa
 			printf(" file: %s\n", dstpath.c_str());
 			fd = open(dstpath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			if (fd != -1) {
-				auto vec2 = internalReplaceWords(std::string_view(vec.data(), vec.size()), srcwords, dstwords);
-				write(fd, vec2.data(), vec2.size());
+				if (isbinary(fd)) {
+					write(fd, vec.data(), vec.size());
+				} else {
+					auto vec2 = internalReplaceWords(std::string_view(vec.data(), vec.size()), srcwords, dstwords);
+					write(fd, vec2.data(), vec2.size());
+				}
 				close(fd);
 			}
 		}

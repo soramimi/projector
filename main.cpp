@@ -4,6 +4,16 @@
 #include <cctype>
 #include <cstring>
 #include <sys/stat.h>
+#include "../FileType/src/FileType.h"
+#include "../FileType/src/magic_mgc.h"
+
+FileType ft;
+
+bool isbinary(int fd)
+{
+	auto r = ft.file(fd);
+	return strcmp(r.charset.c_str(), "binary") == 0;
+}
 
 std::string to_string(std::string_view const &v)
 {
@@ -12,6 +22,8 @@ std::string to_string(std::string_view const &v)
 
 int main(int argc, char **argv)
 {
+	ft.open(magic_mgc_data, magic_mgc_size);
+
 	bool usage = false;
 	
 	char const *rule = nullptr;

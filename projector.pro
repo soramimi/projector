@@ -1,3 +1,4 @@
+DESTDIR = $$PWD/_bin
 
 TARGET = projector
 TEMPLATE = app

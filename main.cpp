@@ -1,11 +1,12 @@
 
+#include "../FileType/src/FileType.h"
+#include "../FileType/src/magic_mgc.h"
 #include "Projector.h"
 #include "joinpath.h"
 #include <cctype>
 #include <cstring>
+#include <optional>
 #include <sys/stat.h>
-#include "../FileType/src/FileType.h"
-#include "../FileType/src/magic_mgc.h"
 
 FileType ft;
 
@@ -26,7 +27,7 @@ int main(int argc, char **argv)
 
 	bool usage = false;
 	
-	char const *rule = nullptr;
+	std::vector<std::tuple<std::string_view, std::string_view>> rules;
 	char const *srcpath = nullptr;
 	char const *dstpath = nullptr;
 	for (int argi = 1; argi < argc; argi++) {
@@ -38,8 +39,28 @@ int main(int argc, char **argv)
 				fprintf(stderr, "unknown option: %s\n", arg);
 			}
 		} else {
-			if (!rule) {
-				rule = arg;
+			auto ParseRule = [](char const *s)->size_t{
+				size_t colon = 0;
+				size_t i = 0;
+				for (i = 0; s[i]; i++) {
+					char c = s[i];
+					if (c == ':') {
+						if (i == 0) return 0;
+						colon = i;
+					} else {
+						if (!isalnum((unsigned char)c) && c != '_') return 0;
+					}
+				}
+				if (colon > 0 && colon + 1 < i) {
+					return colon;
+				}
+				return 0;
+			};
+			size_t colon = ParseRule(arg);
+			if (colon > 0) {
+				std::string_view srcsym{arg, colon};
+				std::string_view dstsym{arg + colon + 1};
+				rules.emplace_back(srcsym, dstsym);
 			} else if (!srcpath) {
 				srcpath = arg;
 			} else if (!dstpath) {
@@ -48,53 +69,16 @@ int main(int argc, char **argv)
 				fprintf(stderr, "syntax error: %s\n", arg);
 			}
 		}
-
 	}
-	std::string_view srcsym;
-	std::string_view dstsym;
 	if (!usage) {
-		if (rule) {
-			char const *p1 = strchr(rule, ':');
-			if (p1) {
-				srcsym = {rule, size_t(p1 - rule)};
-				p1++;
-				char const *p2 = strchr(p1, ':');
-				if (!p2) {
-					dstsym = p1;
-				}
-			}
-			auto issymbol = [](std::string_view const &s){
-				int n = s.size();
-				if (n > 0) {
-					if (isalnum((unsigned char)s[0])) {
-						for (int i = 1; i < n; i++) {
-							if (!isalnum((unsigned char)s[i]) && s[i] != '_') {
-								return false;
-							}
-						}
-						return true;
-					}
-				}
-				return false;
-			};
-			if (!issymbol(srcsym)) {
-				fprintf(stderr, "source symbol is not specified\n");
-				exit(1);
-			}
-			if (!issymbol(dstsym)) {
-				fprintf(stderr, "destination symbol is not specified\n");
-				exit(1);
-			}
-		} else {
+		if (rules.empty()) {
 			fprintf(stderr, "rule is not specified\n");
 			exit(1);
 		}
-		
 		if (!srcpath) {
 			fprintf(stderr, "source path is not specified\n");
 			exit(1);
 		}
-		
 		if (!dstpath) {
 			fprintf(stderr, "destination path is not specified\n");
 			exit(1);
@@ -111,9 +95,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	
-	std::string s = to_string(srcsym);
-	std::string d = to_string(dstsym);
-	Projector gen(s, d);
+	Projector gen(std::move(rules));
 	
 	struct stat srcst;
 	if (stat(srcpath, &srcst) != 0) {

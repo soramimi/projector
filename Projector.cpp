@@ -51,22 +51,23 @@ struct JoinPolicy {
  * @param s 分割する文字列
  * @return 単語のリスト
  */
-std::vector<std::string> split(std::string_view const &s)
+Projector::strlist_t Projector::split(std::string_view const &s)
 {
-	std::vector<std::string> words;
-	char const *p = s.data();
-	while (*p != 0) {
+	strlist_t words;
+	char const *ptr = s.data();
+	char const  *end = ptr + s.size();
+	while (ptr < end) {
 		int i = 1;
 		while (1) {
-			char c = p[i];
-			if (c == 0 || (is_upper(c) && is_lower(p[i + 1]))) {
+			char c = ptr[i];
+			if (ptr + i == end || (is_upper(c) && is_lower(ptr[i + 1]))) {
 				break;
 			}
 			i++;
 		}
-		std::string word(p, i);
+		std::string word(ptr, i);
 		words.push_back(word);
-		p += i;
+		ptr += i;
 	}
 	return words;
 }
@@ -104,10 +105,15 @@ int strncasecmp(char const *l, const char *r, int n)
 }
 #endif
 
-Projector::Projector(std::string_view const &srcname, std::string_view const &dstname)
+Projector::Projector(std::vector<std::tuple<std::string_view, std::string_view>> &&rules)
 {
-	srcwords_ = split(srcname);
-	dstwords_ = split(dstname);
+	for (auto const &rule : rules) {
+		auto srcname = std::get<0>(rule);
+		auto dstname = std::get<1>(rule);
+		auto srcwords = split(srcname);
+		auto dstwords = split(dstname);
+		words_.push_back({srcwords, dstwords});
+	}
 }
 
 /**
@@ -116,10 +122,10 @@ Projector::Projector(std::string_view const &srcname, std::string_view const &ds
  * @param srcwords
  * @param dstwords
  * @return
- * 
+ *
  * 例: srctext = "HelloWorld", srcwords = ["Hello", "World"], dstwords = ["Good", "Bye"]
  */
-std::vector<char> Projector::internalReplaceWords(std::string_view const &srctext, std::vector<std::string> const &srcwords, std::vector<std::string> const &dstwords)
+std::vector<char> Projector::internalReplaceWords(std::string_view const &srctext, strlist_t const &srcwords, strlist_t const &dstwords)
 {
 	std::vector<char> newtext;
 
@@ -228,6 +234,17 @@ std::vector<char> Projector::internalReplaceWords(std::string_view const &srctex
 	return newtext;
 }
 
+std::vector<char> Projector::internalReplaceWords(std::string_view const &srctext, std::vector<WordsPair> const &words)
+{
+	std::string_view view = srctext;
+	std::vector<char> vec;
+	for (WordsPair const &pair : words) {
+		vec = internalReplaceWords(view, pair.srcwords, pair.dstwords);
+		view = std::string_view(vec.data(), vec.size());
+	}
+	return vec;
+}
+
 /**
  * @brief mkpath ディレクトリを作成する
  * @param path 
@@ -259,7 +276,7 @@ bool mkpath(std::string const &path, std::string const &dir, int mode)
  * @param srcwords
  * @param dstwords
  */
-void Projector::convertFile(std::string const &srcpath, std::string const &dstpath, std::vector<std::string> const &srcwords, std::vector<std::string> const &dstwords)
+void Projector::convertFile(std::string const &srcpath, std::string const &dstpath, std::vector<WordsPair> const &words)
 {
 	int fd = open(srcpath.c_str(), O_RDONLY);
 	if (fd != -1) {
@@ -279,7 +296,7 @@ void Projector::convertFile(std::string const &srcpath, std::string const &dstpa
 				if (isbinary(vec.data(), vec.size(), st.st_mode)) {
 					write(fd, vec.data(), vec.size());
 				} else {
-					auto vec2 = internalReplaceWords(std::string_view(vec.data(), vec.size()), srcwords, dstwords);
+					auto vec2 = internalReplaceWords(std::string_view(vec.data(), vec.size()), words);
 					write(fd, vec2.data(), vec2.size());
 				}
 				close(fd);
@@ -333,7 +350,7 @@ void scandir(std::string const &basedir, std::string const &absdir, std::vector<
  */
 std::string Projector::replaceWords(std::string const &t)
 {
-	auto vec = internalReplaceWords(t, srcwords_, dstwords_);
+	std::vector<char> vec = internalReplaceWords(t, words_);
 	return std::string(vec.data(), vec.size());
 }
 
@@ -357,12 +374,12 @@ bool Projector::perform(std::string const &srcpath, std::string const &dstpath)
 	struct stat stsrc;
 	if (stat(srcpath.c_str(), &stsrc) == 0) {
 		if (S_ISREG(stsrc.st_mode)) {
-			convertFile(srcpath, dstpath, srcwords_, dstwords_);
+			convertFile(srcpath, dstpath, words_);
 		} else if (S_ISDIR(stsrc.st_mode)) {
 			for (FileItem const &item : files) {
 				std::string s = srcpath / item.srcpath;
 				std::string d = dstpath / replaceWords(item.dstpath);
-				convertFile(s, d, srcwords_, dstwords_);
+				convertFile(s, d, words_);
 			}
 		}
 	} else {
@@ -386,7 +403,7 @@ bool Projector::perform(std::string const &srcpath, std::string const &dstpath)
  * @param srcwords
  * @param dstwords
  */
-void ProjectGenerator::convertFile(QString const &srcpath, QString const &dstpath, std::vector<std::string> const &srcwords, std::vector<std::string> const &dstwords)
+void ProjectGenerator::convertFile(QString const &srcpath, QString const &dstpath, strlist_t const &srcwords, strlist_t const &dstwords)
 {
 	QFile infile(srcpath);
 	if (infile.open(QFile::ReadOnly)) {

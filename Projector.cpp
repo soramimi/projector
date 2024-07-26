@@ -105,7 +105,7 @@ int strncasecmp(char const *l, const char *r, int n)
 }
 #endif
 
-Projector::Projector(std::vector<std::tuple<std::string_view, std::string_view>> &&rules)
+Projector::Projector(std::vector<std::pair<std::string_view, std::string_view>> &&rules)
 {
 	for (auto const &rule : rules) {
 		auto srcname = std::get<0>(rule);

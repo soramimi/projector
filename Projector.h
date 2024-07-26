@@ -10,8 +10,6 @@ class QString;
 
 class Projector {
 private:
-	// std::vector<std::tuple<std::string_view, std::string_view>> rules_;
-
 	typedef std::vector<std::string> strlist_t;
 
 	struct WordsPair {
@@ -25,7 +23,7 @@ private:
 	static void convertFile(const std::string &srcpath, const std::string &dstpath, const std::vector<WordsPair> &words);
 	static strlist_t split(const std::string_view &s);
 public:
-	Projector(std::vector<std::tuple<std::string_view, std::string_view>> &&rules);
+	Projector(std::vector<std::pair<std::string_view, std::string_view>> &&rules);
 	std::string replaceWords(const std::string &s);
 	bool perform(const std::string &srcpath, const std::string &dstpath);
 #ifdef USE_QT

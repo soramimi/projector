@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 
 	bool usage = false;
 	
-	std::vector<std::tuple<std::string_view, std::string_view>> rules;
+	std::vector<std::pair<std::string_view, std::string_view>> rules;
 	char const *srcpath = nullptr;
 	char const *dstpath = nullptr;
 	for (int argi = 1; argi < argc; argi++) {

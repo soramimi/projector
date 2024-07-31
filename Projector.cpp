@@ -276,30 +276,46 @@ bool mkpath(std::string const &path, std::string const &dir, int mode)
  * @param srcwords
  * @param dstwords
  */
-void Projector::convertFile(std::string const &srcpath, std::string const &dstpath, std::vector<WordsPair> const &words)
+void Projector::convert_file(std::string const &srcpath, std::string const &dstpath, std::vector<WordsPair> const &words, bool implace_edit)
 {
-	int fd = open(srcpath.c_str(), O_RDONLY);
+	int openflags = O_RDONLY;
+	if (implace_edit) {
+		openflags = O_RDWR;
+	}
+	int fd = open(srcpath.c_str(), openflags);
 	if (fd != -1) {
 		auto const *i = strrchr(dstpath.c_str(), '/');
 		if (i > dstpath.c_str()) {
 			std::string basedir(dstpath.c_str(), i - dstpath.c_str());
 			mkpath(basedir, basedir, 0755);
 		}
+		auto ReplaceAndWriteFile = [&](int fd, std::vector<char> const &vec, __mode_t st_mode){
+			if (isbinary(vec.data(), vec.size(), st_mode)) {
+				write(fd, vec.data(), vec.size());
+			} else {
+				auto vec2 = internalReplaceWords(std::string_view(vec.data(), vec.size()), words);
+				write(fd, vec2.data(), vec2.size());
+			}
+		};
+
 		struct stat st;
 		if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode)) {
 			std::vector<char> vec(st.st_size);
 			read(fd, vec.data(), vec.size());
-			close(fd);
-			printf(" file: %s\n", dstpath.c_str());
-			fd = open(dstpath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-			if (fd != -1) {
-				if (isbinary(vec.data(), vec.size(), st.st_mode)) {
-					write(fd, vec.data(), vec.size());
-				} else {
-					auto vec2 = internalReplaceWords(std::string_view(vec.data(), vec.size()), words);
-					write(fd, vec2.data(), vec2.size());
-				}
+			if (implace_edit) {
+				printf(" file: %s\n", srcpath.c_str());
+				lseek(fd, 0, SEEK_SET);
+				ftruncate(fd, 0);
+				ReplaceAndWriteFile(fd, vec, st.st_mode);
 				close(fd);
+			} else {
+				close(fd);
+				printf(" file: %s\n", dstpath.c_str());
+				int fd2 = open(dstpath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+				if (fd2 != -1) {
+					ReplaceAndWriteFile(fd2, vec, st.st_mode);
+					close(fd2);
+				}
 			}
 		}
 	}
@@ -360,7 +376,7 @@ std::string Projector::replaceWords(std::string const &t)
  * @param dstpath
  * @return 
  */
-bool Projector::perform(std::string const &srcpath, std::string const &dstpath)
+bool Projector::perform(std::string const &srcpath, std::string const &dstpath, bool implace_edit)
 {
 	std::vector<FileItem> files;
 	scandir(srcpath, {}, &files);
@@ -374,12 +390,17 @@ bool Projector::perform(std::string const &srcpath, std::string const &dstpath)
 	struct stat stsrc;
 	if (stat(srcpath.c_str(), &stsrc) == 0) {
 		if (S_ISREG(stsrc.st_mode)) {
-			convertFile(srcpath, dstpath, words_);
+			convert_file(srcpath, dstpath, words_, implace_edit);
 		} else if (S_ISDIR(stsrc.st_mode)) {
+			if (implace_edit) {
+				fprintf(stderr, "implace edit is not supported for directory\n");
+				return false;
+			}
 			for (FileItem const &item : files) {
 				std::string s = srcpath / item.srcpath;
 				std::string d = dstpath / replaceWords(item.dstpath);
-				convertFile(s, d, words_);
+				convert_file(s, d, words_, false);
+
 			}
 		}
 	} else {
@@ -390,6 +411,15 @@ bool Projector::perform(std::string const &srcpath, std::string const &dstpath)
 	return true;
 }
 
+bool Projector::perform(std::string const &srcpath, std::string const &dstpath)
+{
+	return perform(srcpath, dstpath, false);
+}
+
+bool Projector::perform_implace(std::string const &path)
+{
+	return perform(path, {}, true);
+}
 
 #ifdef USE_QT
 

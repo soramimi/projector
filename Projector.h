@@ -20,12 +20,14 @@ private:
 
 	static std::vector<char> internalReplaceWords(const std::string_view &srctext, const strlist_t &srcwords, const strlist_t &dstwords);
 	static std::vector<char> internalReplaceWords(const std::string_view &srctext, const std::vector<WordsPair> &words);
-	static void convertFile(const std::string &srcpath, const std::string &dstpath, const std::vector<WordsPair> &words);
+	static void convert_file(const std::string &srcpath, const std::string &dstpath, const std::vector<WordsPair> &words, bool implace_edit);
 	static strlist_t split(const std::string_view &s);
+	bool perform(const std::string &srcpath, const std::string &dstpath, bool implace_edit);
 public:
 	Projector(std::vector<std::pair<std::string_view, std::string_view>> &&rules);
 	std::string replaceWords(const std::string &s);
 	bool perform(const std::string &srcpath, const std::string &dstpath);
+	bool perform_implace(const std::string &path);
 #ifdef USE_QT
 private:
 	static void convertFile(const QString &srcpath, const QString &dstpath, const strlist_t &srcwords, const strlist_t &dstwords);

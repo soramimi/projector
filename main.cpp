@@ -26,6 +26,7 @@ int main(int argc, char **argv)
 	ft.open(magic_mgc_data, magic_mgc_size);
 
 	bool usage = false;
+	bool implace_edit = false;
 	
 	std::vector<std::pair<std::string_view, std::string_view>> rules;
 	char const *srcpath = nullptr;
@@ -35,6 +36,8 @@ int main(int argc, char **argv)
 		if (*arg == '-') {
 			if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
 				usage = true;
+			} else if (strcmp(arg, "-i") == 0) {
+				implace_edit = true;
 			} else {
 				fprintf(stderr, "unknown option: %s\n", arg);
 			}
@@ -79,19 +82,22 @@ int main(int argc, char **argv)
 			fprintf(stderr, "source path is not specified\n");
 			exit(1);
 		}
-		if (!dstpath) {
+		if (!dstpath && !implace_edit) {
 			fprintf(stderr, "destination path is not specified\n");
 			exit(1);
 		}
 	}
 	
 	if (usage) {
-		fprintf(stderr, "usage: projector <rule> <srcpath> <dstpath>\n");
+		fprintf(stderr, "usage: projector [options] <rule> <srcpath> <dstpath>\n");
 		fprintf(stderr, "  rule: <srcsym>:<dstsym>\n");
-		fprintf(stderr, "   - srcsym: source symbol\n");
-		fprintf(stderr, "   - dstsym: destination symbol\n");
-		fprintf(stderr, "  srcpath: source path\n");
-		fprintf(stderr, "  dstpath: destination path\n");
+		fprintf(stderr, "     - srcsym: source symbol\n");
+		fprintf(stderr, "     - dstsym: destination symbol\n");
+		fprintf(stderr, "    srcpath: source path\n");
+		fprintf(stderr, "    dstpath: destination path\n");
+		fprintf(stderr, "  options:\n");
+		fprintf(stderr, "    -i implace edit\n");
+		fprintf(stderr, "    -h, --help: show this help\n");
 		exit(1);
 	}
 	
@@ -111,24 +117,27 @@ int main(int argc, char **argv)
 		}
 		srcpath2 = v;
 	}
-	std::string dstpath2 = dstpath;
-	struct stat dstst;
-	if (stat(dstpath, &dstst) == 0) {
-		if (S_ISDIR(dstst.st_mode)) {
-			char const *p = strrchr(srcpath2.c_str(), '/');
-			if (p) {
-				p++;
+	if (implace_edit) {
+		gen.perform_implace(srcpath2);
+	} else {
+		std::string dstpath2 = dstpath;
+		struct stat dstst;
+		if (stat(dstpath, &dstst) == 0) {
+			if (S_ISDIR(dstst.st_mode)) {
+				char const *p = strrchr(srcpath2.c_str(), '/');
+				if (p) {
+					p++;
+				} else {
+					p = srcpath2.c_str();
+				}
+				dstpath2 = dstpath2 / gen.replaceWords(p);
 			} else {
-				p = srcpath2.c_str();
+				fprintf(stderr, "already existing: %s\n", dstpath);
+				exit(1);
 			}
-			dstpath2 = dstpath2 / gen.replaceWords(p);
-		} else {
-			fprintf(stderr, "already existing: %s\n", dstpath);
-			exit(1);
 		}
+		gen.perform(srcpath2, dstpath2);
 	}
-
-	gen.perform(srcpath2, dstpath2);
 
 	return 0;
 }

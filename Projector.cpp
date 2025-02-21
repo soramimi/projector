@@ -400,7 +400,6 @@ bool Projector::perform(std::string const &srcpath, std::string const &dstpath, 
 				std::string s = srcpath / item.srcpath;
 				std::string d = dstpath / replaceWords(item.dstpath);
 				convert_file(s, d, words_, false);
-
 			}
 		}
 	} else {
